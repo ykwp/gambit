@@ -11,6 +11,9 @@
 (include-adt "_ptreeadt.scm")
 (include-adt "_sourceadt.scm")
 
+(include "target_js.scm")
+(include "target_php.scm")
+
 ;;;----------------------------------------------------------------------------
 ;;
 ;; "Universal" back-end.
@@ -64,6 +67,12 @@
       (target-file-extension-set!
        targ
        file-extension)
+
+      (target-generator-set!
+       targ
+       (case (target-name targ)
+         ((js) js-generator)
+         ((php) php-generator)))
 
       #f)
 
@@ -305,41 +314,42 @@
 (define (ctx-ns-set! ctx x)     (vector-set! ctx 1 x))
 
 (define (translate-gvm-instr ctx gvm-instr)
+  (define targ (ctx-target ctx))
 
   (case (gvm-instr-type gvm-instr)
 
     ((label)
-     (gen "\n"
-          "function "
-          (lbl->id ctx (label-lbl-num gvm-instr) (ctx-ns ctx))
-          "() {\n"
+     (gen
+      ((target-generator targ) 'label-start
+       (lbl->id ctx (label-lbl-num gvm-instr) (ctx-ns ctx)))
+      (case (label-type gvm-instr)
 
-          (case (label-type gvm-instr)
+        ((simple)
+         (gen ""))
 
-            ((simple)
-             (gen ""))
+        ((entry)
+         (gen (if (label-entry-closed? gvm-instr)
+                  "// closure-entry-point\n"
+                  "// entry-point\n")
+              "if ("
+              ((target-generator targ) 'var-name 'nargs)
+              " !== " (label-entry-nb-parms gvm-instr) ") "
+              "throw \"wrong number of arguments\";\n\n"))
 
-            ((entry)
-             (gen (if (label-entry-closed? gvm-instr)
-                      "// closure-entry-point\n"
-                      "// entry-point\n")
-                  "if (nargs !== " (label-entry-nb-parms gvm-instr) ") "
-                  "throw \"wrong number of arguments\";\n\n"))
+        ((return)
+         (gen "// return-point\n"))
 
-            ((return)
-             (gen "// return-point\n"))
+        ((task-entry)
+         (gen "// task-entry-point\n"
+              "throw \"task-entry-point GVM label unimplemented\";\n"))
 
-            ((task-entry)
-             (gen "// task-entry-point\n"
-                  "throw \"task-entry-point GVM label unimplemented\";\n"))
+        ((task-return)
+         (gen "// task-return-point\n"
+              "throw \"task-return-point GVM label unimplemented\";\n"))
 
-            ((task-return)
-             (gen "// task-return-point\n"
-                  "throw \"task-return-point GVM label unimplemented\";\n"))
-
-            (else
-             (compiler-internal-error
-              "translate-gvm-instr, unknown label type")))
+        (else
+         (compiler-internal-error
+          "translate-gvm-instr, unknown label type")))
 
           (sp-adjust ctx (- (frame-size (gvm-instr-frame gvm-instr))) "\n")))
 
@@ -381,7 +391,7 @@
             "{ " adj "return " (translate-gvm-opnd ctx (make-lbl true)) "; }"
             " else "
             "{ " adj "return " (translate-gvm-opnd ctx (make-lbl false)) "; }"
-            "\n}\n")))
+            ((target-generator targ) 'label-stop))))
 
     ((switch)
      ;; TODO
@@ -390,15 +400,17 @@
      ;; (switch-poll? gvm-instr)
      ;; (switch-default gvm-instr)
      (gen "throw \"switch GVM instruction unimplemented\";\n"
-          "}\n"))
+          ((target-generator targ) 'label-stop)))
 
     ((jump)
      ;; TODO
      ;; (jump-safe? gvm-instr)
-     ;; test: (jump-poll? gvm-instr) 
+     ;; test: (jump-poll? gvm-instr)
      (gen (let ((nb-args (jump-nb-args gvm-instr)))
             (if nb-args
-                (gen "nargs = " nb-args ";\n")
+                (gen
+                 ((target-generator targ) 'var-name 'nargs)
+                 " = " nb-args ";\n")
                 ""))
           (sp-adjust ctx (frame-size (gvm-instr-frame gvm-instr)) "\n")
           (let ((opnd (jump-opnd gvm-instr)))
@@ -406,7 +418,7 @@
                 (gen "nextpc = " (translate-gvm-opnd ctx opnd) ";\n"
                      "return null;\n")
                 (gen "return " (translate-gvm-opnd ctx opnd) ";\n")))
-          "}\n"))
+          ((target-generator targ) 'label-stop)))
 
     (else
      (compiler-internal-error
@@ -414,43 +426,37 @@
       gvm-instr))))
 
 (define (translate-gvm-opnd ctx gvm-opnd)
+  (define targ (ctx-target ctx))
 
   (cond ((not gvm-opnd)
          (gen "NO_OPERAND"))
 
         ((reg? gvm-opnd)
-         (gen "reg["
-              (reg-num gvm-opnd)
-              "]"))
+         ((target-generator targ) 'reg (reg-num gvm-opnd)))
 
         ((stk? gvm-opnd)
-         (gen "stack[sp"
-              (if (< (stk-num gvm-opnd) 0) "" "+")
-              (stk-num gvm-opnd)
-              "]"))
+         ((target-generator targ) 'stk (stk-num gvm-opnd)))
 
         ((glo? gvm-opnd)
-         (gen "glo["
-              (object->string (symbol->string (glo-name gvm-opnd)))
-              "]"))
+         ((target-generator targ) 'glo (glo-name gvm-opnd)))
 
         ((clo? gvm-opnd)
-         (gen (translate-gvm-opnd ctx (clo-base gvm-opnd))
-              "["
-              (clo-index gvm-opnd)
-              "]"))
+         ((target-generator targ) 'clo
+          (translate-gvm-opnd ctx (clo-base gvm-opnd))
+          (clo-index gvm-opnd)))
 
         ((lbl? gvm-opnd)
-         (translate-lbl ctx gvm-opnd))
+         ((target-generator targ) 'lbl (translate-lbl ctx gvm-opnd)))
 
         ((obj? gvm-opnd)
          (let ((val (obj-val gvm-opnd)))
            (cond ((number? val)
                   (gen val))
                  ((void-object? val)
-                  (gen "undefined"))
+                  ((target-generator targ) 'void))
                  ((proc-obj? val)
-                  (lbl->id ctx 1 (proc-obj-name val)))
+                  ((target-generator targ) 'proc-obj
+                   (lbl->id ctx 1 (proc-obj-name val))))
                  (else
                   (gen "UNIMPLEMENTED_OBJECT("
                        (object->string val)
@@ -462,9 +468,8 @@
            gvm-opnd))))
 
 (define (sp-adjust ctx n sep)
-  (if (not (= n 0))
-      (gen "sp += " n ";" sep)
-      (gen "")))
+  (let ((targ (ctx-target ctx)))
+    ((target-generator targ) 'adjust-sp n)))
 
 (define (translate-lbl ctx lbl)
   (lbl->id ctx (lbl-num lbl) (ctx-ns ctx)))
@@ -484,71 +489,12 @@
       (proc-obj-name prim)))))
 
 (define (runtime-system targ)
-#<<EOF
-var glo = {};
-var reg = [null];
-var stack = [];
-var sp = -1;
-var nargs = 0;
-var nextpc = null;
-var yield;
-
-if (this.hasOwnProperty('setTimeout')) {
-    yield = this.setTimeout;
-} else {
-    yield = function() {};
-}
-
-
-function lbl1_fx_3c_() { // fx<
-    if (nargs !== 2) throw "wrong number of arguments";
-    reg[1] = reg[1] < reg[2];
-    return reg[0];
-}
-
-glo["fx<"] = lbl1_fx_3c_;
-
-function lbl1_fx_2b_() { // fx+
-    if (nargs !== 2) throw "wrong number of arguments";
-    reg[1] = reg[1] + reg[2];
-    return reg[0];
-}
-
-glo["fx+"] = lbl1_fx_2b_;
-
-function lbl1_fx_2d_() { // fx-
-    if (nargs !== 2) throw "wrong number of arguments";
-    reg[1] = reg[1] - reg[2];
-    return reg[0];
-}
-
-glo["fx-"] = lbl1_fx_2d_;
-
-function lbl1_print() { // print
-    if (nargs !== 1) throw "wrong number of arguments";
-    print(reg[1]);
-    return reg[0];
-}
-
-glo["print"] = lbl1_print;
-
-
-function run(pc) {
-    nextpc = pc;
-    while (nextpc !== null) {
-        yield("", 0);
-        pc = nextpc;
-        nextpc = null;
-        while (pc !== null) {
-            pc = pc();
-        }
-    }
-}
-
-EOF
-)
+  (case (target-name targ)
+    ((js) js-runtime)
+    ((php) php-runtime)))
 
 (define (entry-point ctx main-proc)
-  (gen "run(" (lbl->id ctx 1 (proc-obj-name main-proc)) ");\n"))
+  (let ((targ (ctx-target ctx)))
+    ((target-generator targ) 'entry-point (lbl->id ctx 1 (proc-obj-name main-proc)))))
 
 ;;;============================================================================

@@ -119,7 +119,7 @@
       (compiler-internal-error
        "make-target, version of target module is not current" name))
 
-  (let ((x (make-vector 14)))
+  (let ((x (make-vector 15)))
     (vector-set! x 0 'target)
     (vector-set! x 1 name)
     x))
@@ -151,6 +151,8 @@
 (define (target-switch-testable?-set! x y)  (vector-set! x 12 y))
 (define (target-file-extension x)           (vector-ref x 13))
 (define (target-file-extension-set! x y)    (vector-set! x 13 y))
+(define (target-generator x)                (vector-ref x 14))
+(define (target-generator-set! x y)         (vector-set! x 14 y))
 
 ;;;; Frame constraints structure
 
