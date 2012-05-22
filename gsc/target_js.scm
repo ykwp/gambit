@@ -13,6 +13,14 @@
   (define (label-start name) (gen "\nfunction " name "() {\n"))
   (define (label-stop) "}\n")
   (define (var-name name) name)
+  (define (comment . xs) (gen "// " xs "\n"))
+  (define (narg-check n)
+    (gen "if (" (var-name 'nargs) " !== " n ") {\n"
+         (die "incorrect number of arguments")
+         "}"))
+  (define (die msg) (gen "throw \"" msg "\";\n"))
+  (define (copy a b) (gen a " = " b ";\n"))
+  (define (apply_ a b) (gen a " = " b ";\n"))
 
   (let ((fn (case msg
               ((entry-point) entry-point)
@@ -27,6 +35,11 @@
               ((label-start) label-start)
               ((label-stop) label-stop)
               ((var-name) var-name)
+              ((comment) comment)
+              ((narg-check) narg-check)
+              ((die) die)
+              ((copy) copy)
+              ((apply) apply_)
               (else
                (compiler-internal-error "unknown message" msg)))))
     (apply fn args)))

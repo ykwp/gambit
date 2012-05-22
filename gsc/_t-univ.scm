@@ -276,10 +276,11 @@
 
       (print
        port: port
-       (gen "\n// *** #<"
-            (if (proc-obj-primitive? p)
-                "primitive"
-                "procedure")
+       ((target-generator targ)
+        'comment "*** #<"
+        (if (proc-obj-primitive? p)
+            "primitive"
+            "procedure")
             " "
             (object->string (string->canonical-symbol (proc-obj-name p)))
             "> =\n"))
@@ -315,67 +316,64 @@
 
 (define (translate-gvm-instr ctx gvm-instr)
   (define targ (ctx-target ctx))
+  (define targ-gen (target-generator (ctx-target ctx)))
 
   (case (gvm-instr-type gvm-instr)
 
     ((label)
      (gen
-      ((target-generator targ) 'label-start
-       (lbl->id ctx (label-lbl-num gvm-instr) (ctx-ns ctx)))
-      (case (label-type gvm-instr)
+      (targ-gen 'label-start
+                (lbl->id ctx (label-lbl-num gvm-instr) (ctx-ns ctx)))
 
+      (case (label-type gvm-instr)
         ((simple)
          (gen ""))
 
         ((entry)
          (gen (if (label-entry-closed? gvm-instr)
-                  "// closure-entry-point\n"
-                  "// entry-point\n")
-              "if ("
-              ((target-generator targ) 'var-name 'nargs)
-              " !== " (label-entry-nb-parms gvm-instr) ") "
-              "throw \"wrong number of arguments\";\n\n"))
+                  (targ-gen 'comment "closure-entry-point")
+                  (targ-gen 'comment "entry-point"))
+              (targ-gen 'narg-check (label-entry-nb-parms gvm-instr))))
 
         ((return)
-         (gen "// return-point\n"))
+         (targ-gen 'comment "return point"))
 
         ((task-entry)
-         (gen "// task-entry-point\n"
-              "throw \"task-entry-point GVM label unimplemented\";\n"))
+         (gen (targ-gen 'comment "task-entry-point")
+              (die "task-entry-point GVM label unimplemented")))
 
         ((task-return)
-         (gen "// task-return-point\n"
-              "throw \"task-return-point GVM label unimplemented\";\n"))
+         (gen (targ-gen 'comment "task-return-point")
+              (die "task-return-point GVM label unimplemented")))
 
         (else
          (compiler-internal-error
           "translate-gvm-instr, unknown label type")))
 
-          (sp-adjust ctx (- (frame-size (gvm-instr-frame gvm-instr))) "\n")))
+      (sp-adjust ctx (- (frame-size (gvm-instr-frame gvm-instr))) "\n")))
+
 
     ((apply)
      (let ((loc (apply-loc gvm-instr))
            (prim (apply-prim gvm-instr))
            (opnds (apply-opnds gvm-instr)))
-       (gen (translate-gvm-opnd ctx loc)
-            " = "
-            (prim-applic ctx prim opnds #f)
-            ";\n")))
+       (targ-gen 'apply
+                 (translate-gvm-opnd ctx loc)
+                 (prim-applic ctx prim opnds #f))))
 
     ((copy)
      (let ((loc (copy-loc gvm-instr))
            (opnd (copy-opnd gvm-instr)))
        (if opnd
-           (gen (translate-gvm-opnd ctx loc)
-                " = "
-                (translate-gvm-opnd ctx opnd)
-                ";\n")
+           (targ-gen 'copy
+                     (translate-gvm-opnd ctx loc)
+                     (translate-gvm-opnd ctx opnd))
            (gen ""))))
 
     ((close)
      ;; TODO
      ;; (close-parms gvm-instr)
-     (gen "throw \"close GVM instruction unimplemented\";\n"))
+     (die "close GVM instruction unimplemented"))
 
     ((ifjump)
      ;; TODO
@@ -391,7 +389,7 @@
             "{ " adj "return " (translate-gvm-opnd ctx (make-lbl true)) "; }"
             " else "
             "{ " adj "return " (translate-gvm-opnd ctx (make-lbl false)) "; }"
-            ((target-generator targ) 'label-stop))))
+            (targ-gen 'label-stop))))
 
     ((switch)
      ;; TODO
@@ -399,8 +397,8 @@
      ;; (switch-cases gvm-instr)
      ;; (switch-poll? gvm-instr)
      ;; (switch-default gvm-instr)
-     (gen "throw \"switch GVM instruction unimplemented\";\n"
-          ((target-generator targ) 'label-stop)))
+     (gen (die "switch GVM instruction unimplemented")
+          (targ-gen 'label-stop)))
 
     ((jump)
      ;; TODO
@@ -409,7 +407,7 @@
      (gen (let ((nb-args (jump-nb-args gvm-instr)))
             (if nb-args
                 (gen
-                 ((target-generator targ) 'var-name 'nargs)
+                 (targ-gen 'var-name 'nargs)
                  " = " nb-args ";\n")
                 ""))
           (sp-adjust ctx (frame-size (gvm-instr-frame gvm-instr)) "\n")
@@ -418,7 +416,7 @@
                 (gen "nextpc = " (translate-gvm-opnd ctx opnd) ";\n"
                      "return null;\n")
                 (gen "return " (translate-gvm-opnd ctx opnd) ";\n")))
-          ((target-generator targ) 'label-stop)))
+          (targ-gen 'label-stop)))
 
     (else
      (compiler-internal-error
@@ -427,35 +425,36 @@
 
 (define (translate-gvm-opnd ctx gvm-opnd)
   (define targ (ctx-target ctx))
+  (define targ-gen (target-generator (ctx-target ctx)))
 
   (cond ((not gvm-opnd)
          (gen "NO_OPERAND"))
 
         ((reg? gvm-opnd)
-         ((target-generator targ) 'reg (reg-num gvm-opnd)))
+         (targ-gen 'reg (reg-num gvm-opnd)))
 
         ((stk? gvm-opnd)
-         ((target-generator targ) 'stk (stk-num gvm-opnd)))
+         (targ-gen 'stk (stk-num gvm-opnd)))
 
         ((glo? gvm-opnd)
-         ((target-generator targ) 'glo (glo-name gvm-opnd)))
+         (targ-gen 'glo (glo-name gvm-opnd)))
 
         ((clo? gvm-opnd)
-         ((target-generator targ) 'clo
-          (translate-gvm-opnd ctx (clo-base gvm-opnd))
-          (clo-index gvm-opnd)))
+         (targ-gen 'clo
+                   (translate-gvm-opnd ctx (clo-base gvm-opnd))
+                   (clo-index gvm-opnd)))
 
         ((lbl? gvm-opnd)
-         ((target-generator targ) 'lbl (translate-lbl ctx gvm-opnd)))
+         (targ-gen 'lbl (translate-lbl ctx gvm-opnd)))
 
         ((obj? gvm-opnd)
          (let ((val (obj-val gvm-opnd)))
            (cond ((number? val)
                   (gen val))
                  ((void-object? val)
-                  ((target-generator targ) 'void))
+                  (targ-gen 'void))
                  ((proc-obj? val)
-                  ((target-generator targ) 'proc-obj
+                  (targ-gen 'proc-obj
                    (lbl->id ctx 1 (proc-obj-name val))))
                  (else
                   (gen "UNIMPLEMENTED_OBJECT("
