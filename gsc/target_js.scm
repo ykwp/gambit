@@ -76,6 +76,15 @@ function lbl1_fx_3c_() { // fx<
 
 glo["fx<"] = lbl1_fx_3c_;
 
+function lbl1_fx_2a_() { // fx*
+    if (nargs !== 2) throw "wrong number of arguments";
+    reg[1] = reg[1] * reg[2];
+    return reg[0];
+}
+
+glo["fx*"] = lbl1_fx_2a_;
+
+
 function lbl1_fx_2b_() { // fx+
     if (nargs !== 2) throw "wrong number of arguments";
     reg[1] = reg[1] + reg[2];

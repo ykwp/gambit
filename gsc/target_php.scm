@@ -92,6 +92,17 @@ return $reg[0];
 };
 $glo["fx+"] = 'lbl1_fx_2b_';
 
+function lbl1_fx_2a_() { // fx*
+global $reg;
+global $stack;
+global $sp;
+global $nargs;
+if ($nargs !== 2) die("wrong number of arguments");
+$reg[1] = $reg[1] * $reg[2];
+return $reg[0];
+};
+$glo["fx*"] = 'lbl1_fx_2a_';
+
 function lbl1_fx_2d_() {
 global $reg;
 global $stack;
