@@ -21,6 +21,12 @@
   (define (die msg) (gen "throw \"" msg "\";\n"))
   (define (copy a b) (gen a " = " b ";\n"))
   (define (apply_ a b) (gen a " = " b ";\n"))
+  (define (if_ cond_ then else_)
+    (gen "if (" cond_ ") {\n"
+         then "\n"
+         "} else {\n"
+         else_
+         "}\n"))
 
   (let ((fn (case msg
               ((entry-point) entry-point)
@@ -40,6 +46,7 @@
               ((die) die)
               ((copy) copy)
               ((apply) apply_)
+              ((if) if_)
               (else
                (compiler-internal-error "unknown message" msg)))))
     (apply fn args)))
@@ -52,12 +59,12 @@ var stack = [];
 var sp = -1;
 var nargs = 0;
 var nextpc = null;
-var yield;
+var _yield;
 
 if (this.hasOwnProperty('setTimeout')) {
-    yield = this.setTimeout;
+    _yield = this.setTimeout;
 } else {
-    yield = function() {};
+    _yield = function() {};
 }
 
 
@@ -97,7 +104,7 @@ glo["print"] = lbl1_print;
 function run(pc) {
     nextpc = pc;
     while (nextpc !== null) {
-        yield("", 0);
+        _yield("", 0);
         pc = nextpc;
         nextpc = null;
         while (pc !== null) {

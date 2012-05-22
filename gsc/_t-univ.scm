@@ -383,13 +383,15 @@
            (true (ifjump-true gvm-instr))
            (false (ifjump-false gvm-instr))
            (adj (sp-adjust ctx (frame-size (gvm-instr-frame gvm-instr)) " ")))
-       (gen "if ("
-            (prim-applic ctx test opnds #t)
-            ") "
-            "{ " adj "return " (translate-gvm-opnd ctx (make-lbl true)) "; }"
-            " else "
-            "{ " adj "return " (translate-gvm-opnd ctx (make-lbl false)) "; }"
-            (targ-gen 'label-stop))))
+       (gen
+        (targ-gen 'if
+                  (prim-applic ctx test opnds #t)
+                  (gen adj
+                       "return " (translate-gvm-opnd ctx (make-lbl true)) ";")
+                 (gen adj
+                      "return " (translate-gvm-opnd ctx (make-lbl false)) ";"))
+        (targ-gen 'label-stop))))
+
 
     ((switch)
      ;; TODO

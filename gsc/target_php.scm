@@ -29,6 +29,13 @@
   (define (die msg) (gen "die(\"" msg "\\n\");\n"))
   (define (copy a b) (gen a " = " b ";\n"))
   (define (apply_ a b) (gen a " = " b ";\n"))
+  (define (if_ cond_ then else_)
+    (gen "if (" cond_ ") {\n"
+         then "\n"
+         "} else {\n"
+         else_
+         "}\n"))
+
 
 
   (let ((fn (case msg
@@ -49,6 +56,7 @@
               ((die) die)
               ((copy) copy)
               ((apply) apply_)
+              ((if) if_)
               (else
                (compiler-internal-error "unknown message" msg)))))
     (apply fn args)))
