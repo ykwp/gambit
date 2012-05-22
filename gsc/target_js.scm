@@ -17,7 +17,7 @@
   (define (narg-check n)
     (gen "if (" (var-name 'nargs) " !== " n ") {\n"
          (die "incorrect number of arguments")
-         "}"))
+         "}\n"))
   (define (die msg) (gen "throw \"" msg "\";\n"))
   (define (copy a b) (gen a " = " b ";\n"))
   (define (apply_ a b) (gen a " = " b ";\n"))
