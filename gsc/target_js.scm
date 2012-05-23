@@ -27,6 +27,7 @@
          "} else {\n"
          else_
          "}\n"))
+  (define (return expr) (gen "return " expr ";\n"))
 
   (let ((fn (case msg
               ((entry-point) entry-point)
@@ -47,6 +48,7 @@
               ((copy) copy)
               ((apply) apply_)
               ((if) if_)
+              ((return) return)
               (else
                (compiler-internal-error "unknown message" msg)))))
     (apply fn args)))

@@ -106,6 +106,11 @@
 ;;              in a GVM "switch" instruction.
 ;;
 ;; file-extension  The file extension for generated files.
+;;
+;; generator    Procedure (lambda (msg . args) ...).
+;;              This procedure takes a message and some arguments and
+;;              returns the proper instruction in the target language.
+;;              See target_js.scm for the list of recognized messages.
 
 ;;; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

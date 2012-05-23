@@ -384,12 +384,11 @@
            (false (ifjump-false gvm-instr))
            (adj (sp-adjust ctx (frame-size (gvm-instr-frame gvm-instr)) " ")))
        (gen
+        adj
         (targ-gen 'if
                   (prim-applic ctx test opnds #t)
-                  (gen adj
-                       "return " (translate-gvm-opnd ctx (make-lbl true)) ";")
-                 (gen adj
-                      "return " (translate-gvm-opnd ctx (make-lbl false)) ";"))
+                  (targ-gen 'return (translate-gvm-opnd ctx (make-lbl true)))
+                  (targ-gen 'return (translate-gvm-opnd ctx (make-lbl false))))
         (targ-gen 'label-stop))))
 
 
@@ -408,16 +407,19 @@
      ;; test: (jump-poll? gvm-instr)
      (gen (let ((nb-args (jump-nb-args gvm-instr)))
             (if nb-args
-                (gen
-                 (targ-gen 'var-name 'nargs)
-                 " = " nb-args ";\n")
+                (targ-gen 'copy
+                          (targ-gen 'var-name 'nargs)
+                          nb-args)
                 ""))
           (sp-adjust ctx (frame-size (gvm-instr-frame gvm-instr)) "\n")
           (let ((opnd (jump-opnd gvm-instr)))
             (if (jump-poll? gvm-instr)
-                (gen "nextpc = " (translate-gvm-opnd ctx opnd) ";\n"
-                     "return null;\n")
-                (gen "return " (translate-gvm-opnd ctx opnd) ";\n")))
+                (gen
+                 (targ-gen 'copy
+                           (targ-gen 'var-name 'nextpc)
+                           (translate-gvm-opnd ctx opnd))
+                 (targ-gen 'return (targ-gen 'void)))
+                (targ-gen 'return (translate-gvm-opnd ctx opnd))))
           (targ-gen 'label-stop)))
 
     (else

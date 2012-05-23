@@ -8,7 +8,7 @@
   (define (clo lval index) (gen lval "[" index "]"))
   (define (lbl name) (gen "'" name "'"))
   (define (adjust-sp offset) (gen "$sp += " offset ";\n"))
-  (define (void) (gen "UNDEFINED"))
+  (define (void) (gen "null"))
   (define (proc-obj proc) (gen "'" proc "'"))
   (define (label-start name)
     (gen
@@ -35,6 +35,7 @@
          "} else {\n"
          else_
          "}\n"))
+  (define (return expr) (gen "return " expr ";\n"))
 
 
 
@@ -57,6 +58,7 @@
               ((copy) copy)
               ((apply) apply_)
               ((if) if_)
+              ((return) return)
               (else
                (compiler-internal-error "unknown message" msg)))))
     (apply fn args)))
