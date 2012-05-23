@@ -28,6 +28,9 @@
          else_
          "}\n"))
   (define (return expr) (gen "return " expr ";\n"))
+  (define (equal a b)
+    (gen a " === " b))
+  (define (false) "false")
 
   (let ((fn (case msg
               ((entry-point) entry-point)
@@ -49,6 +52,8 @@
               ((apply) apply_)
               ((if) if_)
               ((return) return)
+              ((false) false)
+              ((equal) equal)
               (else
                (compiler-internal-error "unknown message" msg)))))
     (apply fn args)))

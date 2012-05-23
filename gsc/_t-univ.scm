@@ -13,6 +13,7 @@
 
 (include "target_js.scm")
 (include "target_php.scm")
+(include "target_py.scm")
 
 ;;;----------------------------------------------------------------------------
 ;;
@@ -72,7 +73,8 @@
        targ
        (case (target-name targ)
          ((js) js-generator)
-         ((php) php-generator)))
+         ((php) php-generator)
+         ((python) py2-generator)))
 
       #f)
 
@@ -481,10 +483,13 @@
   (gen "lbl" num "_" (scheme-id->c-id ns)))
 
 (define (prim-applic ctx prim opnds test?)
+  (define targ-gen (target-generator (ctx-target ctx)))
   (case (string->symbol (proc-obj-name prim))
 
     ((##not)
-     (gen (translate-gvm-opnd ctx (list-ref opnds 0)) " === false"))
+     (targ-gen 'equal
+               (translate-gvm-opnd ctx (list-ref opnds 0))
+               (targ-gen 'false)))
 
     (else
      (compiler-internal-error
@@ -494,7 +499,8 @@
 (define (runtime-system targ)
   (case (target-name targ)
     ((js) js-runtime)
-    ((php) php-runtime)))
+    ((php) php-runtime)
+    ((python) py2-runtime)))
 
 (define (entry-point ctx main-proc)
   (let ((targ (ctx-target ctx)))
